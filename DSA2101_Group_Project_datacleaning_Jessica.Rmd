@@ -1,0 +1,90 @@
+---
+title: "DSA2101_Group_Project"
+author: "Jessica Widyawati"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+###libraries
+
+```{r}
+library(tidyverse)
+library(httr)
+library(ggplot2)
+library(lubridate)
+
+```
+### Data cleaning
+
+```{r cars}
+tuesdata <- tidytuesdayR::tt_load('2022-07-05')
+tuesdata <- tidytuesdayR::tt_load(2022, week = 27)
+
+rent <- tuesdata$rent
+permits <- tuesdata$sf_permits
+construction <- tuesdata$new_construction
+```
+
+## Viz1
+
+```{r}
+#rate of increase in rental prices between different types of bedrooms
+
+sf_rent1 <- rent %>%
+  filter(city == "san francisco") %>%
+  drop_na(year, nhood, price, beds) %>%
+  distinct(year, nhood, price, beds) %>%
+  group_by(year, beds) %>%
+  summarize(mean_price = mean(price), .groups = "drop") %>%
+  group_by(beds) %>%
+  mutate(lag_prices = lag(mean_price, order_by = year),
+         yoy_growth = (mean_price-lag_prices)*100/lag_prices,
+         yoy_growth = round(yoy_growth, 2)) %>%
+  ungroup()
+
+#lowest rate of growth is in 2018 in SF for one bedroom apt
+```
+
+### Viz 2
+```{r}
+sf_rents2 <- rent %>%
+  filter(city == "san francisco") %>%
+  drop_na(year, nhood, price, beds) %>%
+  distinct(year, nhood, price, beds) %>%
+  group_by(year, nhood) %>%
+  summarize(mean_price = mean(price), .groups = "drop") %>%
+  arrange(mean_price)
+
+cheapest_3 <- sf_rents2 %>% head(3) %>%
+  pull(nhood)
+
+cheapest_2018 <- sf_rents2 %>% filter(year == 2018) %>% head(1) %>% pull(nhood)
+  
+```
+
+## Viz 3
+```{r}
+sf_permits3 <- permits %>%
+  drop_na(neighborhoods_analysis_boundaries, proposed_use, existing_use, date) %>% 
+  distinct(proposed_use, existing_use, neighborhoods_analysis_boundaries, date) %>%
+  mutate(nhood = str_to_lower(neighborhoods_analysis_boundaries)) %>%
+  separate_rows(nhood, sep = "/") %>% mutate(date = lubridate::date(date))
+
+ sf_rents3 <- rent %>% drop_na(year, nhood, price, beds, date) %>%
+  distinct(year, nhood, price, beds, date) %>%
+  separate_rows(nhood, sep = "/")
+ 
+  sf_rents3 <- mutate(sf_rents3, date = lubridate::date(paste0(str_sub(sf_rents3$date, 1, 4), "-", str_sub(sf_rents3$date, 5, 6),"-", str_sub(sf_rents3$date, 7, 8))))
+  
+  class(sf_rents3$date)
+  
+  sf_combined <- sf_rents3 %>% left_join(sf_permits3, by = c("date", "nhood")) %>% drop_na() %>%
+    count(nhood, proposed_use)
+  
+  #how to handle the many-to-many rs?
+  
+ 
+```
