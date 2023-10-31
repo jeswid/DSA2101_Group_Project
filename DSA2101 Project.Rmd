@@ -1,0 +1,60 @@
+---
+title: "DSA2101 Project"
+author: "San Francisco Rentals"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.align = "center")
+```
+
+```{r, include = FALSE}
+library(tidyverse)
+library(lubridate)
+library(stringr)
+```
+
+# Analysis on San Francisco Rentals
+
+Name | Matriculation number
+:----: | :----:
+Ryan Toh Jun Hui | A0258995B
+Charles Goek | --
+Yao Heng | --
+Jessica | --
+Wan Ting | --
+
+## Introduction
+San Francisco was ranked the first in US city with the highest rent in 2018 only behind New York. In this project, we are looking to answer the following question regarding rental prices in San Francisco:  
+
+1. Where should you rent your one-bedroom apartment in San Francisco?
+
+To do so, we will be using the dataset on San Francisco Rentals in 2018 obtained from [tidytuesday/data/2022/2022-07-05/](https://github.com/rfordatascience/tidytuesday/blob/master/data/2022/2022-07-05).
+
+### Data Description
+
+```{r}
+rent <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-07-05/rent.csv')
+permits <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-07-05/sf_permits.csv')
+new_construction <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-07-05/new_construction.csv')
+```
+### Cleaning
+```{r}
+
+```
+
+### Visualisations
+```{r}
+
+```
+### Discussion
+```{r}
+
+```
+
+
+### References
+
+1.https://www.housingwire.com/articles/47818-heres-what-rents-did-in-all-50-states-in-2018/
