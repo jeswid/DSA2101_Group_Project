@@ -4,9 +4,8 @@ This repository contains an analysis of San Francisco rental prices using data f
 
 ## Project Structure
 
-- **`DSA_proj_final_c.html`**: The rendered report detailing the findings of the analysis, including visualizations and insights.
-- **`DSA_proj_final_c.Rmd`**: The R Markdown source file used to generate the HTML report.
-- **`data/`**: Data files from the TidyTuesday project, which serve as the basis for the analysis.
+- **`Final_Report.html`**: The rendered report detailing the findings of the analysis, including visualizations and insights.
+- **`Final_Report.Rmd`**: The R Markdown source file used to generate the HTML report.
 
 ## Key Features
 
@@ -48,7 +47,7 @@ install.packages(c("tidyverse", "ggplot2", "dplyr", "rmarkdown"))
    cd sf-rental-analysis
   ```
 
-2. Open the `DSA_proj_final_c.Rmd` file in RStudio.
+2. Open the `Final_Report.Rmd` file in RStudio.
 3. Install the required R packages (if not already installed)
 4. Knit the R Markdown file to generate the HTML report:
    ```r
