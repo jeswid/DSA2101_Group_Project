@@ -1,0 +1,328 @@
+---
+title: "DSA2101 Project"
+author: "San Francisco Rentals"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.align = "center")
+```
+
+```{r, include = FALSE}
+library(tidyverse)
+library(lubridate)
+library(stringr)
+library(grid)
+library(gridExtra)
+library(ggrepel)
+library(maps)
+library(ggmap)
+library(mapdata)
+```
+
+# Analysis on Bay Area Rentals
+
+Name | Matriculation number
+:----: | :----:
+Ryan Toh Jun Hui | A0258995B
+Charles Goek Cher Jun | A0233901N
+Leong Yao Heng | A0241011H
+Jessica Widyawati | A0239136A
+Kwek Wan Ting | A0238316E
+
+## Introduction
+
+San Francisco, a city-county located in the Bay Area region of Northern California, was ranked as the city with the highest average monthly rental costs for 1-bedroom apartments in the US in 2018 (Lane, 2019). With the Bay Area becoming a rising business hub for companies to thrive in, rising costs of living have been observed not only in San Francisco, but also in the other counties in the surrounding Bay Area.
+
+In light of a growing demand for rental spaces in the Bay Area amidst rising rental costs, we seek to answer the following question regarding rental prices in the Bay Area:
+
+**Where should you rent your one-bedroom apartment in the Bay Area?**
+
+To do so, we will be using the dataset on San Francisco Rentals in 2018 obtained from [tidytuesday/data/2022/2022-07-05/](https://github.com/rfordatascience/tidytuesday/blob/master/data/2022/2022-07-05).
+
+### Data Description
+
+```{r}
+rent <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-07-05/rent.csv')
+```
+
+For this analysis we are only focusing on the **rent** dataset.
+
+```{r}
+summary(rent)
+```
+A brief description of the variables **relevant** to our analysis are given in the table below:
+
+|variable                 |class     |description |
+|:---|:---|:-----------|
+|date                     |double    | Date of rental listing |
+|year                     |double    | Year of rental listing |
+|county                   |character | County of rental listing |
+|price                    |double    | Rental listing price |
+|beds                     |double    | Number of bedrooms in apartment |
+|room_in_apt              |double    | Rooms available for rent, with **1** indicating only one room in an apartment available for rent and **0** indicating that the entire apartment is available for rent   |
+|lat                      |double    | Latitude of rental apartment listing |
+|lon                      |double    | Longitude of rental apartment listing |
+
+### Preliminary Cleaning
+
+We use the select function to keep the relevant columns we will be using throughout this project. We then filter our data to include only 1-bedroom entire apartment rental listings and remove duplicate listings.  
+```{r}
+rent = rent %>%
+  select(date, year, county, price, beds, room_in_apt, lat, lon) %>%
+  filter(room_in_apt == 0, beds == 1) %>%
+  unique()
+```
+
+With that, the dimension of the dataset is now:
+```{r, echo=FALSE}
+dim(rent)
+```
+
+***
+
+## Sub-question 1: Which counties in the Bay Area have the lowest rental prices for 1 bedroom apartments?
+
+### Introduction
+
+In the Bay Area, rental prices can vary drastically between counties, with rental prices in certain counties reaching nearly twice the cost of others. By presenting some of the cheapest and most expensive counties in the Bay Area, we hope to provide an overview of rental prices in the Bay Area to assist in deciding which county to rent from, by accommodating to one's personal budget considerations.
+
+### Methodology
+
+To illustrate the difference in 1-bedroom apartment rental prices for the different counties in the Bay Area in 2018, we plot a **bar plot** of their prices, and compare it against the average rental price of 1-bedroom flats in the Bay Area in 2018.
+
+### Cleaning
+
+To obtain the relevant variables and observations to fulfill our objective of comparing the most recent year available in the data set (2018), we filtered for 2018 listings. We then computed the average prices, grouped by county.
+
+```{r}
+average_prices = rent %>%
+  filter(year == 2018) %>%
+  mutate(date = ymd(date)) %>%
+  select(year, county, price) %>%
+  drop_na() %>%
+  group_by(county) %>%
+  summarise(avg_price = mean(price)) %>%
+  arrange(desc(avg_price))
+```
+
+We also saved the average Bay Area rental price for 1-bedroom apartments into the avg_price2018 variable by filtering for 2018 listings and computing the mean price for every listing before extracting that value.
+```{r}
+avg_price2018 = rent %>%
+  filter(year == 2018) %>%
+  mutate(avg_price = mean(price)) %>%
+  select(avg_price) %>%
+  head(1) %>%
+  pull(avg_price)
+```
+
+### Visualisations & Discussions
+```{r}
+# Plotting in a bar chart
+ggplot(data = average_prices,aes(x = reorder(county, avg_price), y = avg_price, fill = county)) +
+  geom_col(show.legend = FALSE) +
+  geom_hline(yintercept = avg_price2018, lty = "dashed") +
+  ylim(0, 4500) +
+  annotate("text", y=2500, x="sonoma", label="Average rental price", angle = 270, fontface = 3) +
+  labs(title = "Average rent prices in the Bay Area",
+       subtitle = "Based on 2018 1br Apartments",
+       x = "County",
+       y = "Average Price (USD)") +
+  theme_minimal() +
+  coord_flip()
+```
+From the plot, we can see that San Francisco is the only county with average rental prices exceeding the overall average rental price in the Bay Area, with rental prices in the county reaching nearly double that of Solano.
+
+While San Francisco has consistently presented itself as a county with great job opportunities, its high rental prices compared to the rest of the Bay Area may prompt one to explore other rental options in the surrounding counties. 
+
+***
+
+## Sub-question 2: Which of the counties have optimal locations?
+
+### Introduction
+
+When considering which county to rent from, one might wish to consider its proximity to areas with greater job opportunities or better accessibility to amenities. For example, Silicon Valley is located in Santa Clara County which is one of the largest tech hubs in the US which makes for some attractive job opportunities (Seth, 2022).
+
+### Methodology
+
+In order to present the trade-off between location and price, we plot a **heatmap** of average rental prices of each county in the Bay Area. We also compare the 2018 data to data from a decade earlier in 2008, to show that these prices are largely contingent on location. A side-by-side comparison allows viewers to compare any changes in the relative average rental prices across counties between 2008 and 2018.
+
+### Cleaning
+
+To obtain the relevant data, we first filtered the rent dataset for the year 2008 listings. We further computed the average rental price of one-bedroom listings for each county, saving it to CA_price_2008. This process was repeated for the 2018 data and saved in CA_price_2018.
+```{r}
+county_avg_2008 = rent %>% 
+  filter(year==2008) %>%
+  group_by(county) %>%
+  summarise(avg_price=mean(price))
+
+county_avg_2018 = rent %>% 
+  filter(year==2018) %>%
+  group_by(county) %>%
+  summarise(avg_price=mean(price))
+```
+
+We saved US counties and their respective longitude and latitude data into a variable named counties. We then subsetted the counties variable using subregion to filter for Bay Area counties and setting the region to California, saving it to ca_county. We then joined the CA_price_2008 and ca_county dataset to map the longitude and latitude data (required to plot on the map) to each county using inner_join. We repeated this process for the 2018 data.
+
+```{r}
+counties <- map_data("county") 
+ca_county <- subset(counties, subregion %in% c("napa", "sonoma", "marin", "solano", "contra costa", "alameda", "san mateo", "san francisco", "santa clara", "santa cruz") & region == "california")
+
+CA_price_2008 <- inner_join(ca_county, county_avg_2008, by = c("subregion"="county"))
+CA_price_2018 <- inner_join(ca_county, county_avg_2018, by = c("subregion"="county"))
+```
+
+### Visualisations & Discussions
+```{r}
+# Base plot of map
+ca_base <- ggplot(data = ca_county, mapping = aes(x = long, y = lat,
+                                                  group = group)) +
+  coord_fixed(1.3) +
+  geom_polygon(color = "black", fill = "gray")
+
+# Adding 2018 average price for each county onto the base map
+ca_base_plot_2018 = ca_base + 
+  theme_nothing() + 
+  geom_polygon(data = ca_county, fill = NA, color = "white") +
+  geom_polygon(color = "black", fill = NA) +
+  geom_polygon(data = CA_price_2018, aes(fill = avg_price), color = "white") +
+  geom_polygon(color = "white", fill = NA) +
+  scale_fill_continuous(name = "Average rental price", low = "lightblue", high = "darkblue") +
+  theme(legend.position = "bottom", axis.title = element_blank(), axis.text = element_blank(), 
+        axis.ticks = element_blank()) +
+  annotate("text", x=-121.8, y=37.6,label = "Alameda") +
+  annotate("text", x=-121.9, y=	37.9,label = "Contra Costa") +
+  annotate("text", x=	-122.7, y=38.1, label="Marin") +
+  annotate("text", x=	-122.3, y=38.5, label="Napa") +
+  annotate("segment", x = -122.9, xend = -122.4, y = 37.53, yend = 37.75, colour = "black")+
+  annotate("text", x=	-122.9, y=37.5, label="San Francisco") +
+  annotate("segment", x = -122.7, xend = -122.3, y = 37.33, yend = 37.4, colour = "black")+
+  annotate("text", x=	-122.8, y=37.3, label="San Mateo") +
+  annotate("text", x=	-121.75, y=37.28, label="Santa Clara") +
+  annotate("text", x=	-121.9, y=38.3, label="Solano")+
+  annotate("text", x=	-122.85, y=38.5, label="Sonoma")+
+  annotate("segment", x = -122.4, xend = -122.15, y = 37.0, yend = 37.08, colour = "black")+
+  annotate("text", x=	-122.4, y=36.96, label="Santa Cruz") +
+  annotate("text", x = -122.2, y =36.7, label = "2018 Average Rental Prices", size = 4, fontface = 2) +
+  theme_void()
+
+# Adding 2008 average price for each county onto the base map
+ca_base_plot_2008 = ca_base + 
+  theme_nothing() + 
+  geom_polygon(data = ca_county, fill = NA, color = "white") +
+  geom_polygon(color = "black", fill = NA) +
+  geom_polygon(data = CA_price_2008, aes(fill = avg_price), color = "white") +
+  geom_polygon(color = "white", fill = NA) +
+  scale_fill_continuous(name = "Average rental price", low = "lightblue", high = "darkblue") +
+  theme(legend.position = "bottom", axis.title = element_blank(), axis.text = element_blank(), 
+        axis.ticks = element_blank()) +
+  annotate("text", x=-121.8, y=37.6,label = "Alameda") +
+  annotate("text", x=-121.9, y=	37.9,label = "Contra Costa") +
+  annotate("text", x=	-122.7, y=38.1, label="Marin") +
+  annotate("text", x=	-122.3, y=38.5, label="Napa") +
+  annotate("segment", x = -122.9, xend = -122.4, y = 37.53, yend = 37.75, colour = "black")+
+  annotate("text", x=	-122.9, y=37.5, label="San Francisco") +
+  annotate("segment", x = -122.7, xend = -122.3, y = 37.33, yend = 37.4, colour = "black")+
+  annotate("text", x=	-122.8, y=37.3, label="San Mateo") +
+  annotate("text", x=	-121.75, y=37.28, label="Santa Clara") +
+  annotate("text", x=	-121.9, y=38.3, label="Solano")+
+  annotate("text", x=	-122.85, y=38.5, label="Sonoma")+
+  annotate("segment", x = -122.4, xend = -122.15, y = 37.0, yend = 37.08, colour = "black")+
+  annotate("text", x=	-122.4, y=36.96, label="Santa Cruz") +
+  annotate("text", x = -122.2, y =36.7, label = "2008 Average Rental Prices", size = 4, fontface = 2) +
+  theme_void()
+```
+
+```{r, fig.width=11}
+# Plotting both maps side by side.
+grid.arrange(ca_base_plot_2008, ca_base_plot_2018, ncol=2, top=textGrob("Average Rental Prices Across The Years",gp = gpar(fontface = 2, fontsize = 20)),bottom = textGrob("Based on 1br Apartments ",gp = gpar(fontface = 3, fontsize = 9),hjust = 1, x = 1))
+```
+
+From the plot, relative average rental prices remained largely the same over one decade, with rental prices mostly being higher in the more southern counties, which could possibly be due to their proximity to Silicon Valley. Interestingly, rental in Santa Cruz is less expensive than expected despite being next to Santa Clara, where Silicon Valley is located. This could possibly be due to the upper regions of Santa Cruz County being occupied by state parks that are difficult to travel through, causing those residing in the southern part of Santa Cruz to have to travel a long distance to reach Silicon Valley. As for San Francisco, it is the most expensive relative to other counties, despite being far away from Silicon Valley, as it itself is known to be a thriving business hub as mentioned previously in our introduction.
+
+Comparing the 2018 data against the 2008 data, we can see that in spite of a multitude of developments occurring globally within the span of a decade, rental prices in counties in the Bay Area remained largely the same relative to the other localities. This suggests that a constant factor over the two time periods, such as location, has been a key predictor of the relative rental prices in spite of the many global changes in the decade.
+
+As such, individuals with a tight budget who still want relatively easy access to these optimal locations in the southern region of the Bay Area could consider Santa Cruz as an affordable place to rent from. However, one should still take note that these lower prices come at the expense of convenience of travel, due to the inconvenience of travelling from Santa Cruz to Silicon Valley through the Northern Santa Cruz area.
+
+***
+
+## Sub-question 3: How stable are prices in each county?
+
+### Introduction
+
+Depending on how long one intends to rent an apartment in the Bay Area, one might wish to consider the stability of rental pricing over a period of time. Having more volatile rental prices can be detrimental to one’s financial planning and may result in an individual incurring many unforeseen financial costs due to fast-paced increases in rental pricing. Thus, when considering where to rent, one may choose a region with a relatively stable trend of low rental prices. 
+
+### Methodology
+
+To illustrate the stability of prices in each county, we plot a **line graph** of average rental prices against year, for one-bedroom apartments in different counties. We will also highlight different factors that has affected rental prices throughout the years.
+
+### Cleaning
+
+We first extracted the relevant variables (year, county, price). For this combination of variables, we removed any NA values, arranged the observations by ascending year values, and further computed the average price of 1-bedroom apartments based on each year and county.
+
+``` {r}
+plot3 = rent %>%
+  mutate(date = ymd(date)) %>%
+  select(year, county, price) %>%
+  drop_na() %>%
+  arrange(year) %>%
+  group_by(year, county) %>%
+  summarise(avg_price = mean(price)) %>%
+  ungroup()
+
+# Save county names at 2018 for adding labels to the end of the line chart.
+county_labels = plot3 %>%
+  filter(year == 2018)
+```
+
+### Visualisations & Discussions
+``` {r, fig.width = 8}
+ggplot(data = plot3, aes(x = year, y = avg_price)) +
+  geom_rect(aes(xmin = 2008, xmax = 2009.5, #2008 Financial Crisis highlight
+            ymin = -Inf, ymax = Inf),
+            fill = "pink", alpha = 0.01) +
+  geom_rect(aes(xmin = 2012, xmax = 2017, #Bay Area Housing Crisis highlight
+            ymin = -Inf, ymax = Inf),
+            fill = "lightblue", alpha = 0.01) +
+  geom_rect(aes(xmin = 2000.25, xmax = 2002, #Dotcom Crash highlight
+            ymin = -Inf, ymax = Inf),
+            fill = "thistle", alpha = 0.01) +
+  geom_line(aes(color = county), lwd = 0.8, show.legend = FALSE) +
+  geom_point(aes(color = county), size = 2, show.legend = FALSE) +
+  scale_x_continuous(breaks = seq(2000, 2018, by = 1), limits = c(2000.25, 2023)) +
+  labs(title = "Average Rent Prices of 1 Bedroom Apartments in the Bay Area Over the Years",
+       y = "Price (USD)",
+       x = "Year") +
+  annotate("text", y=3400, x=2001.15, label="Dotcom", vjust = 0.6, size = 3.5) +
+  annotate("text", y=3400, x=2001.15, label="Crash", vjust = 2, size = 3.5) +
+  annotate("text", y=3400, x=2008.75, label="2008", vjust = 0.6, size = 3.5) +
+  annotate("text", y=3400, x=2008.75, label="Financial", vjust = 2, size = 3.5) +
+  annotate("text", y=3400, x=2008.75, label="Crisis", vjust = 3.3, size = 3.5) +
+  annotate("text", y=3400, x=2014.5, label="Bay Area Housing Crisis", size = 3.6) +
+  geom_text_repel(data = county_labels, aes(label = county, color=county),
+            hjust = "left", nudge_x = 2, size = 3) +
+  guides(color = "none") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The crash of the Dotcom Bubble from March 2000 until 2002 impacted household wealth and subsequently impacted rental prices (CFI, 2016), as shown in the plot. After the Dotcom crash, rental prices showed an increasing trend until the 2008 Global Financial Crisis, which caused the housing market to crash. This lasted from 2008 till mid-2009 as we saw a dramatic dip in prices (Investopedia, 2021). The steep increase in rental prices from 2012 to 2017 was caused by the Bay Area Housing Crisis largely due to decades of job creation exceeding the development of new housing (Emerson, 2017). 
+
+Given that all the counties showed a generally increasing trend in rental prices over the years, one may consider renting in counties with more stable prices, such as Solano or Santa Cruz, especially if one intends to rent for a longer period of time. If one were to rent in other counties which display steep and sudden increases in rental prices such as San Francisco, they would likely incur an even greater rental cost over their tenancy.
+
+***
+
+## Conclusion
+
+Overall, our analysis hopes to highlight the importance of considering average rental price, geographical location and stability of rental prices when deciding upon a location to rent from. Through illustrating these factors in our plots, we hope that this report can help individuals seeking rental apartments in the Bay Area make a more informed decision on their choice of location.
+
+### References
+
+1.Data Source: [tidytuesday/data/2022/2022-07-05/](https://github.com/rfordatascience/tidytuesday/blob/master/data/2022/2022-07-05)
+2.CFI. (2016). Dotcom Bubble - Overview, Characteristics, Causes. Corporate Finance Institute. https://corporatefinanceinstitute.com/resources/career-map/sell-side/capital-markets/dotcom-bubble/ 
+3.Emerson, J. (2017, July 5). As real estate boom continues, what impact on the Bay Area economy? Berkeleyside. https://www.berkeleyside.org/2017/07/05/real-estate-boom-continues-impact-bay-area-economy 
+4.Investopedia. (2021, September 28). How the 2008 Housing Crash Affected the American Dream. Investopedia. https://www.investopedia.com/ask/answers/062515/how-was-american-dream-impacted-housing-market-collapse-2008.asp 
+5.Lane, B. (2019, January 2). Here's what rents did in all 50 states in 2018. HousingWire. https://www.housingwire.com/articles/47818-heres-what-rents-did-in-all-50-states-in-2018/ 
+6.Seth, S. (2022, December 19). Why Is Silicon Valley A Startup Heaven? Investopedia. https://www.investopedia.com/articles/personal-finance/061115/why-silicon-valley-startup-heaven.asp
